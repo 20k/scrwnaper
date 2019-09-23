@@ -368,6 +368,9 @@ std::vector<std::string> reduce_strings(const std::vector<std::string>& strings,
             if(overlap.result <= 3)
                 continue;
 
+            if(overlap.result < candidate.size() / 2 && overlap.result < test.size() / 2)
+                continue;
+
             //if(!ends_with(overlap, candidate, test) && ends_with(overlap, test, candidate))
             //    std::cout << "oops\n";
 
@@ -376,6 +379,12 @@ std::vector<std::string> reduce_strings(const std::vector<std::string>& strings,
 
             if(overlap.result > best_match)
             {
+                if(keep_unmerged)
+                {
+                    if(merge_together(candidate, test) == "")
+                        continue;
+                }
+
                 best = test;
                 best_match = overlap.result;
             }
@@ -459,6 +468,13 @@ void phase_1()
     write_all_bin("built.txt", nl.dump());
 }
 
+bool has_file(const std::string& fname)
+{
+    std::fstream fstr(fname);
+
+    return fstr.good();
+}
+
 bool has_phase_2()
 {
     std::fstream fstr("built.txt");
@@ -468,6 +484,55 @@ bool has_phase_2()
 
 void phase_2()
 {
+    if(!has_file("built.txt"))
+    {
+        auto data = get_file("deps/dtr/fragments.json");
+
+        nlohmann::json ndata = nlohmann::json::parse(data);
+
+        std::vector<data_format> all_data;
+
+        for(int i=0; i < (int)ndata.size(); i++)
+        {
+            data_format form;
+            try
+            {
+
+                deserialise(ndata[i], form, serialise_mode::DISK);
+                all_data.push_back(form);
+            }
+            catch(...)
+            {
+
+            }
+        }
+
+        for_every_frag(all_data, [](const std::string& in)
+        {
+            return in.size() > 12 || !valid_string(in) || in.size() < 2;
+        });
+
+        std::vector<std::string> strings;
+
+        for_every_frag(all_data, [&](const std::string& in)
+        {
+            strings.push_back(in);
+            return false;
+        });
+
+        uniqify(strings);
+
+        //std::cout << "BMERGE " << merge_together(" you w", " you wer") << std::endl;
+
+        std::cout << "Have " << strings.size() << " strings\n";
+
+        auto definites = reduce_strings(strings, true);
+
+        nlohmann::json nl = definites;
+
+        write_all_bin("built.txt", nl.dump());
+    }
+
     auto gf = get_file("built.txt");
 
     nlohmann::json js = nlohmann::json::parse(gf.begin(), gf.end());
@@ -483,22 +548,38 @@ void phase_2()
         std::cout << i << std::endl;
     }*/
 
-    for(int i=0; i < 5; i++)
+    for(int i=0; i < 10; i++)
     {
-        strings = reduce_strings(strings, true);
+        std::string fname = "built_" + std::to_string(i) + ".txt";
+
+        std::cout << "I have strings " << strings.size() << " at reduction " << i << std::endl;
+
+        if(has_file(fname))
+        {
+            auto gf2 = get_file(fname);
+
+            nlohmann::json js2 = nlohmann::json::parse(gf2.begin(), gf2.end());
+
+            strings = js2.get<std::vector<std::string>>();
+
+            uniqify(strings);
+
+            continue;
+        }
+        else
+        {
+            strings = reduce_strings(strings, true);
+        }
 
         nlohmann::json dat = strings;
 
-        write_all_bin("built_" + std::to_string(i) + ".txt", dat.dump());
+        write_all_bin(fname, dat.dump());
     }
 }
 
 int main()
 {
-    if(!has_phase_2())
-        phase_1();
-    else
-        phase_2();
+    phase_2();
 
     return 0;
 }
