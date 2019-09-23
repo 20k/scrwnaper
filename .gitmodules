@@ -1,0 +1,6 @@
+[submodule "deps/dtr"]
+	path = deps/dtr
+	url = https://github.com/hackmud-dtr/fragments-one-file
+[submodule "deps/networking"]
+	path = deps/networking
+	url = https://github.com/20k/clientservernetworking
