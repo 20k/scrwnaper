@@ -53,6 +53,12 @@ struct data_format : serialisable
 
 using namespace std;
 
+void write_all_bin(const std::string& fname, const std::string& str)
+{
+    std::ofstream out(fname, std::ios::binary);
+    out << str;
+}
+
 std::vector<char> get_file(const std::string& name)
 {
     std::ifstream file(name, std::ios::binary | std::ios::ate);
@@ -114,7 +120,297 @@ void for_every_frag(T& in, const U& f)
     }
 }
 
-int main()
+
+struct result_info
+{
+    int idx = 0;
+    int idy = 0;
+
+    int result = 0;
+};
+
+result_info lcsubstr(const std::string& s1, const std::string& s2)
+{
+    int m = s1.size();
+    int n = s2.size();
+
+    //std::cout << m << n <<std::endl;
+
+    // Create a table to store lengths of longest common suffixes of
+    // substrings.   Notethat LCSuff[i][j] contains length of longest
+    // common suffix of X[0..i-1] and Y[0..j-1]. The first row and
+    // first column entries have no logical meaning, they are used only
+    // for simplicity of program
+    //int LCSuff[m+1][n+1];
+    /*std::vector<std::vector<int>> LCSuff;
+
+    LCSuff.resize(m+1);
+
+    for(auto& i : LCSuff)
+        i.resize(n+1);*/
+
+    int width = n;
+
+    int fdim = (m + 1) * (n + 1);
+
+    static std::vector<int> LCSuff;
+    //LCSuff.resize((m + 1) * (n + 1));
+
+    if(LCSuff.size() < fdim)
+        LCSuff.resize(fdim);
+
+    memset(&LCSuff[0], 0, LCSuff.size() * sizeof(int));
+
+    result_info inf;
+
+    /* Following steps build LCSuff[m+1][n+1] in bottom up fashion. */
+    for (int i=0; i<=m; i++)
+    {
+        for (int j=0; j<=n; j++)
+        {
+            if (i == 0 || j == 0)
+                LCSuff[i*width + j] = 0;
+
+            else if (s1[i-1] == s2[j-1])
+            {
+                LCSuff[i*width + j] = LCSuff[(i-1)*width + j-1] + 1;
+                //result = std::max(result, LCSuff[i][j]);
+
+                if(LCSuff[i*width + j] >= inf.result)
+                {
+                    inf.result = LCSuff[i*width + j];
+                    inf.idx = i;
+                    inf.idy = j;
+                }
+            }
+            else LCSuff[i*width + j] = 0;
+        }
+    }
+    return inf;
+}
+
+bool ends_with(const result_info& inf, const std::string& s1, const std::string& s2)
+{
+    if(s1 == s2)
+        return true;
+
+    int rlen = inf.result;
+    int idx = inf.idx;
+    int idy = inf.idy;
+
+    if(s1.find(s2) != std::string::npos)
+        return true;
+
+    if(s2.find(s1) != std::string::npos)
+        return true;
+
+    //const std::string& s1 = m.s1->data;
+    //const std::string& s2 = m.s2->data;
+
+    //std::cout << "bidx " << idx << " idy " << idy << " rlen " << rlen << std::endl;
+
+    if(idx == 0 || idy == 0)
+        return false;
+
+    int base_idx = idx - rlen;
+    int base_idy = idy - rlen;
+
+    if(base_idx < 0 || base_idy < 0)
+        return false;
+
+    if((base_idx != 0 && base_idy != 0) || (base_idx + rlen != (int)s1.size() && base_idy + rlen != (int)s2.size()))
+        return false;
+
+    if(base_idx == 0 && base_idy == 0)
+        return s1 == s2;
+
+    int num = 0;
+
+    for(int i=base_idx, j = base_idy; i < base_idx + rlen && i < (int)s1.size() && j < base_idy + rlen && j < (int)s2.size(); i++, j++)
+    {
+        num++;
+
+        if(s1[i] != s2[j])
+            return false;
+    }
+
+    if(num == 0)
+        return false;
+
+    return true;
+}
+
+std::string merge_together(const std::string& s1, const std::string& s2)
+{
+    result_info lc = lcsubstr(s1, s2);
+
+    if(lc.result == 0)
+        return "";
+
+    std::string res;
+    //res = std::string(s1.begin(), s1.begin() + lc.idx);
+    //res += std::string(s2.begin() + lc.idy, )
+
+    /*if(s1.ends_with(s2))
+    {
+        res = std::string(s1.begin(), s1.begin() + lc.idx);
+        res += std::string(s2.begin() + lc.idy, s2.end());
+        return res;
+    }
+
+    if(s2.ends_with(s1))
+    {
+        res = std::string(s2.begin(), s2.begin() + lc.idy);
+        res += std::string(s1.begin() + lc.idx, s1.end());
+
+        return res;
+    }*/
+
+    if(s1.ends_with(s2))
+    {
+        return s1;
+    }
+
+    if(s2.ends_with(s1))
+    {
+        return s2;
+    }
+
+    if(s2.starts_with(s1))
+    {
+        return s2;
+    }
+
+    if(s1.starts_with(s2))
+    {
+        return s1;
+    }
+
+    if(s1.find(s2) != std::string::npos)
+        return s1;
+
+    if(s2.find(s1) != std::string::npos)
+        return s2;
+
+    ///so, take the string
+    ///s1 = a1234
+    ///s2 = 1234b
+    ///s1 doesn't start with s2
+
+    ///the other case
+    ///s1 = 1234b
+    ///s2 = a1234
+
+    assert(lc.idx >= lc.result);
+    assert(lc.idy >= lc.result);
+
+    std::string sub = s1.substr(lc.idx - lc.result, lc.result);
+
+    int start_x = lc.idx - lc.result;
+    int start_y = lc.idy - lc.result;
+
+    if(s1.starts_with(sub) && s2.ends_with(sub))
+    {
+        std::string res = std::string(s2.begin(), s2.begin() + lc.idy) + std::string(s1.begin() + lc.idx, s1.end());
+
+        //std::cout << "Merged " << s1 << " with " << s2 << " got " << res << std::endl;
+
+        return res;
+    }
+
+    if(s2.starts_with(sub) && s1.ends_with(sub))
+    {
+        std::string res = std::string(s1.begin(), s1.begin() + lc.idx) + std::string(s2.begin() + lc.idy, s2.end());
+
+        //std::cout << "Merged " << s1 << " with " << s2 << " got " << res << std::endl;
+
+        return res;
+    }
+
+    return "";
+}
+
+template<typename T>
+void uniqify(T& in)
+{
+    std::sort(in.begin(), in.end());
+    auto last = std::unique(in.begin(), in.end());
+
+    in.erase(last, in.end());
+}
+
+std::vector<std::string> reduce_strings(const std::vector<std::string>& strings, bool keep_unmerged)
+{
+    ///so
+    ///overlap, find definite results first
+    std::vector<std::string> definites;
+
+    int c = 0;
+
+    for(int i=0; i < (int)strings.size(); i++)
+    {
+        const std::string& candidate = strings[i];
+
+        std::string best;
+        int best_match = 0;
+
+        for(int kk=0; kk < (int)strings.size(); kk++)
+        {
+            const std::string& test = strings[kk];
+
+            if(i == kk)
+                continue;
+
+            //std::cout << "CAN " << candidate << " TEST " << test << std::endl;
+
+            result_info overlap = lcsubstr(candidate, test);
+
+            if(overlap.result <= 3)
+                continue;
+
+            //if(!ends_with(overlap, candidate, test) && ends_with(overlap, test, candidate))
+            //    std::cout << "oops\n";
+
+            //if(!ends_with(overlap, candidate, test))
+            //    continue;
+
+            if(overlap.result > best_match)
+            {
+                best = test;
+                best_match = overlap.result;
+            }
+
+            //std::cout << "CAN " << candidate << " TEST " << test << std::endl;
+
+            //std::cout << "overlap? " << overlap.idx << " res " << overlap.result << std::endl;
+        }
+
+        std::string merged = merge_together(candidate, best);
+
+        if(merged == "")
+        {
+            std::cout << "COULD NOT MERGE \"" << candidate << "\" WITH \"" << best << "\"" << std::endl;
+
+            if(keep_unmerged)
+            {
+                definites.push_back(candidate);
+            }
+        }
+        else
+        {
+            definites.push_back(merged);
+        }
+
+        printf("Going %i\n", c);
+        c++;
+    }
+
+    uniqify(definites);
+
+    return definites;
+}
+
+void phase_1()
 {
     auto data = get_file("deps/dtr/fragments.json");
 
@@ -142,18 +438,67 @@ int main()
         return in.size() > 12 || !valid_string(in) || in.size() < 2;
     });
 
-    for(auto& i : all_data)
-    {
-        std::cout << "id " << i._id << std::endl;
+    std::vector<std::string> strings;
 
-        for(auto& f : i.output)
-        {
-            for(auto& j : f.fragments)
-            {
-                std::cout << j << std::endl;
-            }
-        }
+    for_every_frag(all_data, [&](const std::string& in)
+    {
+        strings.push_back(in);
+        return false;
+    });
+
+    uniqify(strings);
+
+    //std::cout << "BMERGE " << merge_together(" you w", " you wer") << std::endl;
+
+    std::cout << "Have " << strings.size() << " strings\n";
+
+    auto definites = reduce_strings(strings, false);
+
+    nlohmann::json nl = definites;
+
+    write_all_bin("built.txt", nl.dump());
+}
+
+bool has_phase_2()
+{
+    std::fstream fstr("built.txt");
+
+    return fstr.good();
+}
+
+void phase_2()
+{
+    auto gf = get_file("built.txt");
+
+    nlohmann::json js = nlohmann::json::parse(gf.begin(), gf.end());
+
+    std::vector<std::string> strings = js.get<std::vector<std::string>>();
+
+    uniqify(strings);
+
+    std::cout << "P2 num " << strings.size() << std::endl;
+
+    /*for(auto& i : strings)
+    {
+        std::cout << i << std::endl;
+    }*/
+
+    for(int i=0; i < 5; i++)
+    {
+        strings = reduce_strings(strings, true);
+
+        nlohmann::json dat = strings;
+
+        write_all_bin("built_" + std::to_string(i) + ".txt", dat.dump());
     }
+}
+
+int main()
+{
+    if(!has_phase_2())
+        phase_1();
+    else
+        phase_2();
 
     return 0;
 }
